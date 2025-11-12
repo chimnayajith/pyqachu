@@ -1,5 +1,8 @@
+// main.dart
+
 import 'package:flutter/material.dart';
-import 'package:pyqachu/features/home/screens/search_page.dart';
+// 1. UPDATE IMPORT: Change 'search_page.dart' to 'dashboard_screen.dart'
+import 'package:pyqachu/features/home/screens/dashboard_screen.dart';
 import 'features/auth/screens/welcome_screen.dart';
 import 'features/auth/screens/auth_page.dart';
 
@@ -31,9 +34,11 @@ class PyqachuApp extends StatelessWidget {
       // Start on the Welcome screen
       initialRoute: '/',
       routes: {
-        '/': (context) => WelcomePage(),
-        '/auth': (context) => AuthPage(),
-        '/search': (context) => SearchPage(),
+        '/': (context) => const WelcomePage(),
+        '/auth': (context) => const AuthPage(),
+        // 2. UPDATE ROUTE & CLASS: Change '/search' to '/dashboard'
+        //    and SearchPage() to DashboardScreen()
+        '/dashboard': (context) => const DashboardScreen(),
       },
     );
   }
