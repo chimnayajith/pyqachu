@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
+import 'package:pyqachu/features/pyq/screens/pyq_results_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -254,9 +255,14 @@ class _SearchPageState extends State<SearchPage> {
 
       if (response.success) {
         // Navigate to results page with the PYQs
-        // You can implement a results page to display the PYQs
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Found ${response.results.length} PYQs')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PyqResultsPage(
+              subject: selectedSubject!,
+              initialPyqs: response.results,
+            ),  
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
