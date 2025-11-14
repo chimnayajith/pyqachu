@@ -100,7 +100,6 @@ class PreviousYearQuestion(models.Model):
 
     class Meta:
         ordering = ['-year', 'semester', 'subject']
-        unique_together = ['subject', 'year', 'semester', 'regulation']
 
     @property
     def approved(self):

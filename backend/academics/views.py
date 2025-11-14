@@ -139,7 +139,6 @@ class PYQUploadView(generics.CreateAPIView):
     """
     serializer_class = PYQUploadSerializer
     permission_classes = [IsAuthenticated]
-
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
 

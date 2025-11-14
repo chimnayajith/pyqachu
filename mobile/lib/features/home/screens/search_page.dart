@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
 import 'package:pyqachu/features/pyq/screens/pyq_results_page.dart';
+import 'package:pyqachu/features/pyq/screens/pyq_upload_page.dart';
 import 'package:pyqachu/features/bookmark/screens/bookmark_page.dart';
 import 'package:pyqachu/features/profile/screens/profile_page.dart';
 
@@ -380,9 +381,40 @@ class _SearchPageState extends State<SearchPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Search Previous Year Question Papers',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Search Previous Year Question Papers',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PYQUploadPage()),
+                        );
+                        if (result == true) {
+                          // Refresh data if needed
+                        }
+                      },
+                      icon: const Icon(Icons.upload, size: 18),
+                      label: const Text(
+                        'Upload',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.black,
+                        backgroundColor: Colors.grey.shade100,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 30),
                 _buildSelector(
