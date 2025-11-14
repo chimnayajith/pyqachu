@@ -15,6 +15,11 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   bool isLogin = true;
   bool _isLoading = false;
 
+  // Password visibility state variables
+  bool _isLoginPasswordVisible = false;
+  bool _isRegisterPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
   final _loginFormKey = GlobalKey<FormState>();
   final _registerFormKey = GlobalKey<FormState>();
 
@@ -324,12 +329,22 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
             const SizedBox(height: 8),
             _buildTextField(
               hint: 'Password',
-              obscure: true,
+              obscure: !_isLoginPasswordVisible,
               validator: (value) {
                 if (value == null || value.isEmpty) return 'Password is required';
                 return null;
               },
               controller: _loginPasswordController,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isLoginPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isLoginPasswordVisible = !_isLoginPasswordVisible;
+                  });
+                },
+              ),
             ),
             const SizedBox(height: 30),
             _buildBlackButton('Login', onPressed: _handleLogin),
@@ -360,22 +375,42 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
               _buildLabelAndField(
                 'Password',
                 'Password',
-                obscure: true,
+                obscure: !_isRegisterPasswordVisible,
                 controller: _passwordController,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Password is required';
                   return null;
                 },
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isRegisterPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isRegisterPasswordVisible = !_isRegisterPasswordVisible;
+                    });
+                  },
+                ),
               ),
               _buildLabelAndField(
                 'Confirm Password',
                 'Confirm Password',
-                obscure: true,
+                obscure: !_isConfirmPasswordVisible,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Confirm your password';
                   if (value != _passwordController.text) return 'Passwords do not match';
                   return null;
                 },
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                    });
+                  },
+                ),
               ),
               const SizedBox(height: 30),
               _buildBlackButton('Create Account', onPressed: _handleRegister),
@@ -393,13 +428,20 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     bool obscure = false,
     String? Function(String?)? validator,
     TextEditingController? controller,
+    Widget? suffixIcon,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
-        _buildTextField(hint: hint, obscure: obscure, validator: validator, controller: controller),
+        _buildTextField(
+          hint: hint,
+          obscure: obscure,
+          validator: validator,
+          controller: controller,
+          suffixIcon: suffixIcon,
+        ),
         const SizedBox(height: 20),
       ],
     );
@@ -410,6 +452,7 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     bool obscure = false,
     String? Function(String?)? validator,
     TextEditingController? controller,
+    Widget? suffixIcon,
   }) {
     return TextFormField(
       controller: controller,
@@ -424,6 +467,7 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        suffixIcon: suffixIcon,
       ),
     );
   }

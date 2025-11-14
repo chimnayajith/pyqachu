@@ -1,31 +1,44 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/api_models.dart';
 import '../constants/api_config.dart';
 
 class ApiService {
-  // You'll need to handle authentication tokens here
+  static const String _tokenKey = 'auth_token';
   static String? _authToken;
   
-  static void setAuthToken(String token) {
-    _authToken = token;
+  // Initialize token from storage on app start
+  static Future<void> initializeToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    _authToken = prefs.getString(_tokenKey);
   }
   
-  static void clearAuthToken() {
+  static Future<void> setAuthToken(String token) async {
+    _authToken = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenKey, token);
+  }
+  
+  static Future<void> clearAuthToken() async {
     _authToken = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
   }
   
   static Map<String, String> get _headers {
     final headers = {
       'Content-Type': 'application/json',
     };
-    print(_authToken);
     if (_authToken != null) {
       headers['Authorization'] = 'Token $_authToken';
     }
     
     return headers;
   }
+
+  // Check if user is authenticated
+  static bool get isAuthenticated => _authToken != null;
 
   // Authentication methods
   static Future<LoginResponse> login(String username, String password) async {
@@ -45,8 +58,8 @@ class ApiService {
         final token = data['token'];
         final user = UserProfile.fromJson(data['user']);
         
-        // Store the token
-        setAuthToken(token);
+        // Store the token persistently
+        await setAuthToken(token);
         
         return LoginResponse(
           success: true,
@@ -151,7 +164,7 @@ class ApiService {
       ).timeout(ApiConfig.connectTimeout);
 
       if (response.statusCode == 200) {
-        clearAuthToken();
+        await clearAuthToken();
         return true;
       }
       return false;

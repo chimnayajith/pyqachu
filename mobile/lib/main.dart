@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:pyqachu/features/home/screens/search_page.dart';
+import 'package:pyqachu/shared/navigation/main_navigation.dart';
+import 'package:pyqachu/core/services/api_service.dart';
 import 'features/auth/screens/welcome_screen.dart';
 import 'features/auth/screens/auth_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize the auth token from storage
+  await ApiService.initializeToken();
+  
   runApp(const PyqachuApp());
 }
 
@@ -33,7 +39,7 @@ class PyqachuApp extends StatelessWidget {
       routes: {
         '/': (context) => WelcomePage(),
         '/auth': (context) => AuthPage(),
-        '/search': (context) => SearchPage(),
+        '/main': (context) => const MainNavigation(),
       },
     );
   }

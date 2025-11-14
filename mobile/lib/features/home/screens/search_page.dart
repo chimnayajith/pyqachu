@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
 import 'package:pyqachu/features/pyq/screens/pyq_results_page.dart';
+import 'package:pyqachu/features/bookmark/screens/bookmark_page.dart';
+import 'package:pyqachu/features/profile/screens/profile_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -16,6 +18,34 @@ class _SearchPageState extends State<SearchPage> {
   Subject? selectedSubject;
 
   bool _isLoading = false;
+  int _currentIndex = 0;
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  void _onTabTapped(int index) {
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
 
   void _openSelectionModal(String type) async {
     List<dynamic> options = [];
@@ -23,7 +53,6 @@ class _SearchPageState extends State<SearchPage> {
     bool hasError = false;
     String? errorMessage;
 
-    // Dependency checks
     if (type == 'branch' && selectedCollege == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a college first')),
@@ -37,12 +66,10 @@ class _SearchPageState extends State<SearchPage> {
       return;
     }
 
-    // Show loading
     setState(() {
       _isLoading = true;
     });
 
-    // Fetch data from API
     try {
       if (type == 'college') {
         final response = await ApiService.getColleges();
@@ -254,7 +281,6 @@ class _SearchPageState extends State<SearchPage> {
       });
 
       if (response.success) {
-        // Navigate to results page with the PYQs
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -279,8 +305,7 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSearchContent() {
     final bool isReady =
         selectedCollege != null && selectedBranch != null && selectedSubject != null;
 
@@ -370,6 +395,67 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        children: [
+          _buildSearchContent(),
+          const BookmarkPage(),
+          const ProfilePage(),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade300,
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _onTabTapped,
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey.shade600,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 12,
+          ),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bookmark_outline),
+              activeIcon: Icon(Icons.bookmark),
+              label: 'Bookmark',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

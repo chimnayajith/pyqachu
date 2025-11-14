@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
+import 'package:pyqachu/features/bookmark/screens/bookmark_page.dart';
+import 'package:pyqachu/features/profile/screens/profile_page.dart';
 
 class PyqResultsPage extends StatefulWidget {
   final Subject subject;
@@ -21,25 +23,27 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
   List<PreviousYearQuestion> _filteredPyqs = [];
   bool _isGridView = false;
   bool _isLoading = false;
-  
+  int _currentIndex = 0;
+  late PageController _pageController;
+
   // Filter variables
   int? _selectedYear;
   int? _selectedSemester;
   String? _selectedRegulation;
-  
+
   // Get unique values for filters
   List<int> get _availableYears {
     final years = _allPyqs.map((pyq) => pyq.year).toSet().toList();
     years.sort((a, b) => b.compareTo(a)); // Sort descending (newest first)
     return years;
   }
-  
+
   List<int> get _availableSemesters {
     final semesters = _allPyqs.map((pyq) => pyq.semester).toSet().toList();
     semesters.sort();
     return semesters;
   }
-  
+
   List<String> get _availableRegulations {
     final regulations = _allPyqs
         .where((pyq) => pyq.regulation != null && pyq.regulation!.isNotEmpty)
@@ -54,7 +58,33 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
   void initState() {
     super.initState();
     _allPyqs = List.from(widget.initialPyqs);
+    _pageController = PageController();
     _applyFilters();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  void _onTabTapped(int index) {
+    if (index == 0) {
+      // Navigate back to search page when home is tapped
+      Navigator.pop(context);
+    } else {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _applyFilters() {
@@ -130,7 +160,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
 
   Widget _buildFilterChips() {
     final hasActiveFilters = _selectedYear != null || _selectedSemester != null || _selectedRegulation != null;
-    
+
     return Container(
       height: 50,
       child: SingleChildScrollView(
@@ -145,10 +175,10 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
                 isSelected: _selectedYear != null,
                 onTap: () => _showFilterModal('year'),
               ),
-            
+
             if (_availableYears.isNotEmpty && (_availableSemesters.isNotEmpty || _availableRegulations.isNotEmpty))
               const SizedBox(width: 12),
-            
+
             // Semester filter
             if (_availableSemesters.isNotEmpty)
               _buildFilterChip(
@@ -156,10 +186,10 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
                 isSelected: _selectedSemester != null,
                 onTap: () => _showFilterModal('semester'),
               ),
-            
+
             if (_availableSemesters.isNotEmpty && _availableRegulations.isNotEmpty)
               const SizedBox(width: 12),
-            
+
             // Regulation filter
             if (_availableRegulations.isNotEmpty)
               _buildFilterChip(
@@ -167,7 +197,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
                 isSelected: _selectedRegulation != null,
                 onTap: () => _showFilterModal('regulation'),
               ),
-            
+
             // Clear filters
             if (hasActiveFilters) ...[
               const SizedBox(width: 16),
@@ -224,7 +254,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
   void _showFilterModal(String filterType) {
     List<dynamic> options = [];
     dynamic currentValue;
-    
+
     switch (filterType) {
       case 'year':
         options = _availableYears;
@@ -298,10 +328,10 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
                       },
                     );
                   }
-                  
+
                   final option = options[index - 1];
                   final isSelected = currentValue == option;
-                  
+
                   return ListTile(
                     title: Text(option.toString()),
                     trailing: isSelected ? const Icon(Icons.check, size: 20) : null,
@@ -501,8 +531,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPyqResultsContent() {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -594,7 +623,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
               padding: const EdgeInsets.only(bottom: 10),
               child: _buildFilterChips(),
             ),
-          
+
           // Results count
           Container(
             color: Colors.grey.shade50,
@@ -621,7 +650,7 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
               ],
             ),
           ),
-          
+
           // Results
           Expanded(
             child: _filteredPyqs.isEmpty && !_isLoading
@@ -661,6 +690,67 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        children: [
+          _buildPyqResultsContent(),
+          const BookmarkPage(),
+          const ProfilePage(),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade300,
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _onTabTapped,
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey.shade600,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 12,
+          ),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bookmark_outline),
+              activeIcon: Icon(Icons.bookmark),
+              label: 'Bookmark',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
