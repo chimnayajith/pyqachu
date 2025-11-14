@@ -248,10 +248,24 @@ class ApiService {
     }
   }
 
-  // Get subjects for a specific branch
-  static Future<ApiResponse<Subject>> getSubjects(int branchId, {String? search}) async {
+  // Get subjects for a specific branch or all subjects in a college
+  static Future<ApiResponse<Subject>> getSubjects({int? branchId, int? collegeId, String? search}) async {
     try {
-      String url = '${ApiConfig.baseUrl}/subjects/?branch_id=$branchId';
+      String url = '${ApiConfig.baseUrl}/subjects/?';
+      
+      if (branchId != null) {
+        url += 'branch_id=$branchId';
+      } else if (collegeId != null) {
+        url += 'college_id=$collegeId';
+      } else {
+        // If neither is provided, return empty response
+        return ApiResponse(
+          results: [],
+          success: false,
+          error: 'Either branchId or collegeId must be provided',
+        );
+      }
+      
       if (search != null && search.isNotEmpty) {
         url += '&search=$search';
       }

@@ -58,6 +58,8 @@ class BranchListView(generics.ListAPIView):
 class SubjectListView(generics.ListAPIView):
     """
     GET /api/subjects/?branch_id= - Get subjects for a specific branch
+    GET /api/subjects/?college_id= - Get subjects for all branches in a college
+    GET /api/subjects/?college_id=&branch_id= - Get subjects for a specific branch (branch_id takes precedence)
     """
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated]
@@ -69,9 +71,14 @@ class SubjectListView(generics.ListAPIView):
     def get_queryset(self):
         queryset = Subject.objects.select_related('branch', 'branch__college', 'created_by').filter(is_active=True)
         branch_id = self.request.query_params.get('branch_id')
+        college_id = self.request.query_params.get('college_id')
         
         if branch_id:
+            # If branch_id is provided, filter by specific branch
             queryset = queryset.filter(branch_id=branch_id)
+        elif college_id:
+            # If only college_id is provided, get subjects from all branches in that college
+            queryset = queryset.filter(branch__college_id=college_id)
         
         return queryset
 
