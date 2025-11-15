@@ -123,7 +123,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Media files (user uploads) - serve from the pyq_papers folder inside backend
-MEDIA_URL = '/pyq_papers/'
+MEDIA_URL = '/media/'  # Use standard Django media URL
 MEDIA_ROOT = BASE_DIR / 'pyq_papers'  # Points to /home/chimnayyyy/Code/pyqachu/backend/pyq_papers/
 
 # Default primary key field type

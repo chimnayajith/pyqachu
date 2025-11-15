@@ -85,13 +85,19 @@ class PreviousYearQuestionSerializer(serializers.ModelSerializer):
     def get_pdf_url(self, obj):
         """Generate complete PDF URL"""
         if obj.paper_file:
+            # Handle the case where database paths contain 'pyq_papers/' prefix
+            file_path = str(obj.paper_file)
+            if file_path.startswith('pyq_papers/'):
+                # Strip the 'pyq_papers/' prefix since MEDIA_ROOT already points to pyq_papers directory
+                file_path = file_path[len('pyq_papers/'):]
+            
             request = self.context.get('request')
             if request:
-                # Return full URL including domain and protocol
-                return request.build_absolute_uri(obj.paper_file.url)
+                # Construct URL manually with the corrected path
+                return request.build_absolute_uri(f'/media/{file_path}')
             else:
                 # Fallback: construct URL manually using the correct IP
-                return f"http://10.28.5.188:8000{obj.paper_file.url}"
+                return f"http://127.0.0.1:8000/media/{file_path}"
         return None
 
 
