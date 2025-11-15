@@ -22,7 +22,7 @@ from .permissions import RoleBasedPermissionMixin
 
 class CollegeListView(generics.ListAPIView):
     """
-    GET /api/colleges/ - List all active colleges
+    GET /api/colleges/ - List colleges accessible to the user
     """
     serializer_class = CollegeSerializer
     permission_classes = [IsAuthenticated]
@@ -32,7 +32,14 @@ class CollegeListView(generics.ListAPIView):
     ordering = ['name']
 
     def get_queryset(self):
-        return College.objects.filter(is_active=True)
+        user = self.request.user
+        if user.is_superuser:
+            return College.objects.filter(is_active=True)
+        
+        # Return colleges where user has any role
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(user)
+        return user_colleges
+
 
 class BranchListView(generics.ListAPIView):
     """
@@ -49,8 +56,16 @@ class BranchListView(generics.ListAPIView):
         queryset = Branch.objects.select_related('college', 'created_by').filter(is_active=True)
         college_id = self.request.query_params.get('college_id')
         
-        if college_id:
+        if (college_id):
             queryset = queryset.filter(college_id=college_id)
+            # Check if user has access to this college
+            user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+            if not user_colleges.filter(id=college_id).exists():
+                return Branch.objects.none()
+        else:
+            # Filter to only colleges user has access to
+            user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+            queryset = queryset.filter(college__in=user_colleges)
         
         return queryset
 
@@ -58,8 +73,6 @@ class BranchListView(generics.ListAPIView):
 class SubjectListView(generics.ListAPIView):
     """
     GET /api/subjects/?branch_id= - Get subjects for a specific branch
-    GET /api/subjects/?college_id= - Get subjects for all branches in a college
-    GET /api/subjects/?college_id=&branch_id= - Get subjects for a specific branch (branch_id takes precedence)
     """
     serializer_class = SubjectSerializer
     permission_classes = [IsAuthenticated]
@@ -71,14 +84,21 @@ class SubjectListView(generics.ListAPIView):
     def get_queryset(self):
         queryset = Subject.objects.select_related('branch', 'branch__college', 'created_by').filter(is_active=True)
         branch_id = self.request.query_params.get('branch_id')
-        college_id = self.request.query_params.get('college_id')
         
         if branch_id:
-            # If branch_id is provided, filter by specific branch
             queryset = queryset.filter(branch_id=branch_id)
-        elif college_id:
-            # If only college_id is provided, get subjects from all branches in that college
-            queryset = queryset.filter(branch__college_id=college_id)
+            # Check if user has access to this branch's college
+            try:
+                branch = Branch.objects.select_related('college').get(id=branch_id)
+                user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+                if not user_colleges.filter(id=branch.college.id).exists():
+                    return Subject.objects.none()
+            except Branch.DoesNotExist:
+                return Subject.objects.none()
+        else:
+            # Filter to only colleges user has access to
+            user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+            queryset = queryset.filter(branch__college__in=user_colleges)
         
         return queryset
 
@@ -99,10 +119,13 @@ class PreviousYearQuestionListView(generics.ListAPIView):
             'subject', 'subject__branch', 'subject__branch__college', 'uploaded_by', 'reviewed_by'
         )
         
-        # Only show approved PYQs to regular users, but moderators can see all
+        # Filter by user's accessible colleges
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+        queryset = queryset.filter(subject__branch__college__in=user_colleges)
+        
+        # Only show approved PYQs unless user can moderate
         if not self.request.user.is_superuser:
             # Check if user can moderate for any college
-            user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
             can_moderate_any = False
             for college in user_colleges:
                 if RoleBasedPermissionMixin.can_moderate_pyqs(self.request.user, college):
@@ -135,11 +158,19 @@ class PreviousYearQuestionListView(generics.ListAPIView):
 
 class PYQUploadView(generics.CreateAPIView):
     """
-    POST /api/pyqs/upload/ - Upload a new PYQ (any authenticated user can upload)
+    POST /api/pyqs/upload/ - Upload a new PYQ
     """
     serializer_class = PYQUploadSerializer
     permission_classes = [IsAuthenticated]
+
     def perform_create(self, serializer):
+        # Verify user has access to the subject's college
+        subject = serializer.validated_data['subject']
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+        
+        if not user_colleges.filter(id=subject.branch.college.id).exists():
+            raise PermissionDenied("You don't have access to upload PYQs for this college")
+        
         serializer.save(uploaded_by=self.request.user)
 
 
@@ -162,6 +193,121 @@ class PYQModerationView(generics.UpdateAPIView):
             raise PermissionDenied("You don't have permission to moderate PYQs for this college")
         
         serializer.save()
+
+
+class PendingPYQListView(generics.ListAPIView):
+    """
+    GET /api/pyqs/pending/ - Get pending PYQs for moderation
+    """
+    serializer_class = PreviousYearQuestionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['subject__name', 'uploaded_by__username', 'regulation']
+    ordering_fields = ['uploaded_at', 'year', 'semester']
+    ordering = ['-uploaded_at']  # Most recent first
+
+    def get_queryset(self):
+        # Only allow moderators and superusers to access pending PYQs
+        user = self.request.user
+        
+        if user.is_superuser:
+            # Superusers can see all pending PYQs
+            return PreviousYearQuestion.objects.filter(status='pending').select_related(
+                'subject', 'subject__branch', 'subject__branch__college', 'uploaded_by', 'reviewed_by'
+            )
+        
+        # Get colleges where user has moderation permissions
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(user)
+        accessible_colleges = []
+        
+        for college in user_colleges:
+            if RoleBasedPermissionMixin.can_moderate_pyqs(user, college):
+                accessible_colleges.append(college)
+        
+        if not accessible_colleges:
+            return PreviousYearQuestion.objects.none()
+        
+        # Return pending PYQs from accessible colleges
+        return PreviousYearQuestion.objects.filter(
+            status='pending',
+            subject__branch__college__in=accessible_colleges
+        ).select_related(
+            'subject', 'subject__branch', 'subject__branch__college', 'uploaded_by', 'reviewed_by'
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_pyq_details(request, pk):
+    """
+    PATCH /api/pyqs/<id>/update-details/ - Update PYQ details (year, semester, regulation) during moderation
+    """
+    try:
+        pyq = get_object_or_404(PreviousYearQuestion, pk=pk)
+        college = pyq.subject.branch.college
+        
+        # Check if user can moderate for this college
+        if not RoleBasedPermissionMixin.can_moderate_pyqs(request.user, college):
+            raise PermissionDenied("You don't have permission to moderate PYQs for this college")
+        
+        # Extract the fields that can be updated
+        year = request.data.get('year')
+        semester = request.data.get('semester') 
+        regulation = request.data.get('regulation')
+        
+        # Update the fields if provided
+        if year is not None:
+            pyq.year = year
+        if semester is not None:
+            pyq.semester = semester
+        if regulation is not None:
+            pyq.regulation = regulation
+            
+        pyq.save()
+        
+        serializer = PreviousYearQuestionSerializer(pyq)
+        return Response(serializer.data)
+        
+    except PreviousYearQuestion.DoesNotExist:
+        raise Http404("PYQ not found")
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def moderate_pyq(request, pk):
+    """
+    POST /api/pyqs/<id>/moderate/ - Approve or reject a PYQ
+    """
+    try:
+        pyq = get_object_or_404(PreviousYearQuestion, pk=pk)
+        college = pyq.subject.branch.college
+        
+        # Check if user can moderate for this college
+        if not RoleBasedPermissionMixin.can_moderate_pyqs(request.user, college):
+            raise PermissionDenied("You don't have permission to moderate PYQs for this college")
+        
+        action = request.data.get('action')  # 'approve' or 'reject'
+        notes = request.data.get('notes', '')
+        
+        if action not in ['approve', 'reject']:
+            return Response({'error': 'Action must be either "approve" or "reject"'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update PYQ status
+        pyq.status = 'approved' if action == 'approve' else 'rejected'
+        pyq.reviewed_by = request.user
+        pyq.reviewed_at = timezone.now()
+        pyq.review_notes = notes
+        pyq.save()
+        
+        serializer = PreviousYearQuestionSerializer(pyq)
+        return Response({
+            'message': f'PYQ {action}d successfully',
+            'pyq': serializer.data
+        })
+        
+    except PreviousYearQuestion.DoesNotExist:
+        raise Http404("PYQ not found")
 
 
 @api_view(['GET'])
@@ -230,14 +376,17 @@ def pyq_download(request, pk):
     try:
         pyq = get_object_or_404(PreviousYearQuestion, pk=pk)
         
-        # Only check if PYQ is approved for regular users
-        if not request.user.is_superuser:
-            # Check if user can moderate for the college
-            college = pyq.subject.branch.college
+        # Check if user has access to this PYQ's college
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(request.user)
+        college = pyq.subject.branch.college
+        
+        if not user_colleges.filter(id=college.id).exists():
+            raise PermissionDenied("You don't have access to this PYQ")
+        
+        # Only allow access to approved PYQs unless user can moderate
+        if pyq.status != 'approved' and not request.user.is_superuser:
             if not RoleBasedPermissionMixin.can_moderate_pyqs(request.user, college):
-                # Regular user - only allow access to approved PYQs
-                if pyq.status != 'approved':
-                    raise PermissionDenied("This PYQ is not approved for viewing")
+                raise PermissionDenied("This PYQ is not approved for viewing")
         
         # Check if file exists
         if not pyq.paper_file or not os.path.exists(pyq.paper_file.path):

@@ -91,7 +91,7 @@ class PreviousYearQuestion(models.Model):
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_pyqs')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_pyqs')
-    review_notes = models.TextField(blank=True)
+    review_notes = models.TextField(blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
 

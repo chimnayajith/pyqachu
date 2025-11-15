@@ -70,16 +70,29 @@ class PreviousYearQuestionSerializer(serializers.ModelSerializer):
     uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
     reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    pdf_url = serializers.SerializerMethodField()
     
     class Meta:
         model = PreviousYearQuestion
         fields = [
-            'id', 'year', 'semester', 'regulation', 'paper_file', 
+            'id', 'year', 'semester', 'regulation', 'paper_file', 'pdf_url',
             'uploaded_by', 'uploaded_by_username', 'status', 'status_display',
             'reviewed_by', 'reviewed_by_username', 'review_notes',
             'uploaded_at', 'reviewed_at', 'subject', 'subject_name', 
             'branch_name', 'college_name'
         ]
+    
+    def get_pdf_url(self, obj):
+        """Generate complete PDF URL"""
+        if obj.paper_file:
+            request = self.context.get('request')
+            if request:
+                # Return full URL including domain and protocol
+                return request.build_absolute_uri(obj.paper_file.url)
+            else:
+                # Fallback: construct URL manually using the correct IP
+                return f"http://10.28.5.188:8000{obj.paper_file.url}"
+        return None
 
 
 class PYQUploadSerializer(serializers.ModelSerializer):

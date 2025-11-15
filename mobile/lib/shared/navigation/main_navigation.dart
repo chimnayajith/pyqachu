@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:pyqachu/features/home/screens/search_page.dart';
 import 'package:pyqachu/features/bookmark/screens/bookmark_page.dart';
 import 'package:pyqachu/features/profile/screens/profile_page.dart';
+import 'package:pyqachu/features/moderation/screens/moderation_page.dart';
+import 'package:pyqachu/core/services/auth_service.dart';
+import 'package:pyqachu/core/services/api_service.dart';
 
 class MainNavigation extends StatefulWidget {
   final int initialIndex;
@@ -18,12 +21,80 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   late int _currentIndex;
   late PageController _pageController;
+  bool _isModerator = false;
+  List<Widget> _pages = [];
+  List<BottomNavigationBarItem> _navItems = [];
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
+    _checkModeratorStatus();
+  }
+
+  Future<void> _checkModeratorStatus() async {
+    print('=== CHECKING MODERATOR STATUS ===');
+    
+    final user = await AuthService.getUser();
+    print('Current user data: $user');
+    
+    final token = await AuthService.getToken();
+    print('Auth token available: ${token != null ? "YES" : "NO"}');
+    
+    if (token != null) {
+      // Also check via API call
+      final isModerator = await ApiService.isModerator();
+      print('API isModerator result: $isModerator');
+      
+      setState(() {
+        _isModerator = isModerator;
+        _setupNavigationItems();
+        _pageController = PageController(initialPage: widget.initialIndex);
+      });
+    } else {
+      print('No auth token - user not logged in');
+      setState(() {
+        _isModerator = false;
+        _setupNavigationItems();
+        _pageController = PageController(initialPage: widget.initialIndex);
+      });
+    }
+    
+    print('Final moderator status: $_isModerator');
+    print('=== END MODERATOR CHECK ===');
+  }
+
+  void _setupNavigationItems() {
+    _pages = [
+      const SearchPage(),
+      const BookmarkPage(),
+      if (_isModerator) const ModerationPage(),
+      const ProfilePage(),
+    ];
+
+    _navItems = [
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.home_outlined),
+        activeIcon: Icon(Icons.home),
+        label: 'Home',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.bookmark_outline),
+        activeIcon: Icon(Icons.bookmark),
+        label: 'Bookmark',
+      ),
+      if (_isModerator)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.gavel_outlined),
+          activeIcon: Icon(Icons.gavel),
+          label: 'Moderate',
+        ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.person_outline),
+        activeIcon: Icon(Icons.person),
+        label: 'Profile',
+      ),
+    ];
   }
 
   @override
@@ -48,15 +119,20 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    if (_pages.isEmpty) {
+      // Show loading while checking moderator status
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       body: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
-        children: const [
-          SearchPage(),
-          BookmarkPage(),
-          ProfilePage(),
-        ],
+        children: _pages,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -85,23 +161,7 @@ class _MainNavigationState extends State<MainNavigation> {
             fontWeight: FontWeight.w500,
             fontSize: 12,
           ),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bookmark_outline),
-              activeIcon: Icon(Icons.bookmark),
-              label: 'Bookmark',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
+          items: _navItems,
         ),
       ),
     );

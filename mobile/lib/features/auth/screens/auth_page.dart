@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pyqachu/shared/navigation/main_navigation.dart';
 import 'package:pyqachu/features/home/screens/search_page.dart';
 import 'package:pyqachu/core/services/api_service.dart';
 import 'package:pyqachu/core/services/auth_service.dart';
@@ -79,27 +80,32 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     setState(() => _isLoading = true);
 
     try {
+      print('=== ATTEMPTING LOGIN ===');
       final result = await ApiService.login(
         _loginUsernameController.text,
         _loginPasswordController.text,
       );
 
       if (result.success) {
+        print('Login successful!');
         final token = result.token;
         final user = result.user;
 
         await AuthService.saveAuthData(token, user);
 
         if (mounted) {
+          print('Navigating to MainNavigation after login');
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const SearchPage()),
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
           );
         }
       } else {
+        print('Login failed: ${result.error}');
         _showErrorDialog(result.error ?? 'Login failed');
       }
     } catch (e) {
+      print('Login error: $e');
       _showErrorDialog('Network error. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);

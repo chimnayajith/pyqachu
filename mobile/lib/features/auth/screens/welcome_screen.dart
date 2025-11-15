@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'auth_page.dart';
 import '../../../core/services/auth_service.dart';
-import '../../home/screens/search_page.dart';
+import '../../../shared/navigation/main_navigation.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -18,19 +18,24 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   Future<void> _checkAuthStatus() async {
+    print('=== WELCOME PAGE: Checking auth status ===');
+    
     // Show splash for 2 seconds minimum
     await Future.delayed(const Duration(seconds: 2));
     
     if (mounted) {
       final isLoggedIn = await AuthService.isLoggedIn();
+      print('User logged in: $isLoggedIn');
       
       if (isLoggedIn) {
-        // User is already logged in, go to search page
+        print('Navigating to MainNavigation');
+        // User is already logged in, go to main navigation
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const SearchPage()),
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
       } else {
+        print('Navigating to AuthPage');
         // User is not logged in, go to auth page
         Navigator.pushReplacement(
           context,

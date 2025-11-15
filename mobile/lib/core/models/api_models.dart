@@ -1,3 +1,5 @@
+import '../constants/api_config.dart';
+
 class College {
   final int id;
   final String name;
@@ -118,6 +120,7 @@ class PreviousYearQuestion {
   final int semester;
   final String? regulation;
   final String paperFile;
+  final String _pdfUrl; // Store relative URL from backend
   final int uploadedBy;
   final String uploadedByUsername;
   final String status;
@@ -138,6 +141,7 @@ class PreviousYearQuestion {
     required this.semester,
     this.regulation,
     required this.paperFile,
+    required String pdfUrl,
     required this.uploadedBy,
     required this.uploadedByUsername,
     required this.status,
@@ -151,7 +155,21 @@ class PreviousYearQuestion {
     required this.subjectName,
     required this.branchName,
     required this.collegeName,
-  });
+  }) : _pdfUrl = pdfUrl;
+
+  // Construct complete PDF URL using ApiConfig.baseUrl
+  String get pdfUrl {
+    if (_pdfUrl.isNotEmpty) {
+      // If the URL is already complete (starts with http), return as is
+      if (_pdfUrl.startsWith('http')) {
+        return _pdfUrl;
+      }
+      // Otherwise, construct complete URL by removing /api from baseUrl
+      final baseUrlWithoutApi = ApiConfig.baseUrl.replaceAll('/api', '');
+      return '$baseUrlWithoutApi$_pdfUrl';
+    }
+    return '';
+  }
 
   factory PreviousYearQuestion.fromJson(Map<String, dynamic> json) {
     return PreviousYearQuestion(
@@ -160,6 +178,7 @@ class PreviousYearQuestion {
       semester: json['semester'],
       regulation: json['regulation'],
       paperFile: json['paper_file'],
+      pdfUrl: json['pdf_url'] ?? '',
       uploadedBy: json['uploaded_by'],
       uploadedByUsername: json['uploaded_by_username'],
       status: json['status'],

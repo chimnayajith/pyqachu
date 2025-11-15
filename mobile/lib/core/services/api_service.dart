@@ -453,4 +453,113 @@ class ApiService {
     }
     return url;
   }
+
+  // Moderator methods
+  
+  // Get pending PYQs for moderation
+  static Future<ApiResponse<PreviousYearQuestion>> getPendingPyqs() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/pending/'),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final pyqs = data.map((json) => PreviousYearQuestion.fromJson(json)).toList();
+        
+        return ApiResponse(
+          results: pyqs,
+          success: true,
+        );
+      } else {
+        return ApiResponse(
+          results: [],
+          success: false,
+          error: 'Failed to load pending PYQs: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        results: [],
+        success: false,
+        error: 'Network error: $e',
+      );
+    }
+  }
+
+  // Review a PYQ (approve or reject)
+  static Future<bool> reviewPyq(int pyqId, String action, String? notes) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/$pyqId/moderate-action/'),
+        headers: _headers,
+        body: json.encode({
+          'action': action,
+          'notes': notes,
+        }),
+      ).timeout(ApiConfig.connectTimeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Update PYQ details (year, semester, regulation)
+  static Future<bool> updatePyqDetails(int pyqId, {
+    int? year,
+    int? semester,
+    String? regulation,
+  }) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/$pyqId/update-details/'),
+        headers: _headers,
+        body: json.encode({
+          if (year != null) 'year': year,
+          if (semester != null) 'semester': semester,
+          if (regulation != null) 'regulation': regulation,
+        }),
+      ).timeout(ApiConfig.connectTimeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating PYQ details: $e');
+      return false;
+    }
+  }
+
+  // Check if current user is a moderator
+  static Future<bool> isModerator() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/user-role-info/'),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      print('Moderator check URL: ${ApiConfig.baseUrl}/user-role-info/');
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final collegeRoles = data['college_roles'] as List<dynamic>? ?? [];
+        
+        // Check if user has moderator or admin role for any college
+        for (var roleInfo in collegeRoles) {
+          if (roleInfo['can_moderate'] == true) {
+            return true;
+          }
+        }
+        
+        // Also check if user is superuser
+        return data['is_superuser'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking moderator status: $e');
+      return false;
+    }
+  }
 }
