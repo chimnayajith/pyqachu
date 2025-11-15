@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
+import 'package:pyqachu/features/pyq/screens/pyq_viewer.dart';
 
 class PyqResultsPage extends StatefulWidget {
   final Subject subject;
@@ -118,12 +119,11 @@ class _PyqResultsPageState extends State<PyqResultsPage> {
   }
 
   void _onPyqTapped(PreviousYearQuestion pyq) {
-    // TODO: Add PDF opening logic here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening ${pyq.year} Sem ${pyq.semester}...'),
-        backgroundColor: Colors.black87,
-        duration: const Duration(seconds: 1),
+    // Navigate to PDF viewer
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PdfViewerScreen(pyq: pyq),
       ),
     );
   }
