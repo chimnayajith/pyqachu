@@ -21,12 +21,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   String? _errorMessage;
   String? _localPath;
   bool _isBookmarked = false;
+  bool _isLoadingBookmark = false;
 
   @override
   void initState() {
     super.initState();
     _initializePdf();
-    // TODO: Load bookmark status from local storage
+    _loadBookmarkStatus();
   }
 
   Future<void> _initializePdf() async {
@@ -74,12 +75,28 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
   }
 
+  Future<void> _loadBookmarkStatus() async {
+    try {
+      final isBookmarked = await ApiService.isBookmarked(widget.pyq.id);
+      if (mounted) {
+        setState(() {
+          _isBookmarked = isBookmarked;
+        });
+      }
+    } catch (e) {
+      print('Error loading bookmark status: $e');
+    }
+  }
+
   @override
   void dispose() {
     _pdfController?.dispose();
     // Clean up temporary file
     if (_localPath != null) {
-      File(_localPath!).delete().catchError((e) => print('Error deleting temp file: $e'));
+      File(_localPath!).delete().catchError((e) {
+        print('Error deleting temp file: $e');
+        return File(_localPath!); // Return the file object for proper error handling
+      });
     }
     super.dispose();
   }
@@ -247,20 +264,67 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
   }
 
-  void _toggleBookmark() {
-    setState(() {
-      _isBookmarked = !_isBookmarked;
-    });
+  Future<void> _toggleBookmark() async {
+    if (_isLoadingBookmark) return;
     
-    // TODO: Save bookmark status to local storage
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isBookmarked ? 'Added to bookmarks' : 'Removed from bookmarks'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: _isBookmarked ? Colors.green : Colors.grey[600],
-      ),
-    );
+    setState(() {
+      _isLoadingBookmark = true;
+    });
+
+    try {
+      bool success;
+      if (_isBookmarked) {
+        success = await ApiService.removeBookmark(widget.pyq.id);
+      } else {
+        success = await ApiService.addBookmark(widget.pyq.id);
+      }
+
+      if (success && mounted) {
+        setState(() {
+          _isBookmarked = !_isBookmarked;
+          _isLoadingBookmark = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isBookmarked ? 'Added to bookmarks' : 'Removed from bookmarks'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: _isBookmarked ? Colors.green : Colors.grey[600],
+          ),
+        );
+      } else {
+        setState(() {
+          _isLoadingBookmark = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_isBookmarked ? 'Failed to remove bookmark' : 'Failed to add bookmark'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoadingBookmark = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Network error: Please try again'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _reportPdf() {
@@ -506,6 +570,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 icon: _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                 label: 'Bookmark',
                 onTap: _toggleBookmark,
+                isLoading: _isLoadingBookmark,
               ),
             ],
           ),
@@ -518,12 +583,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool isLoading = false,
   }) {
     return Expanded(
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: isLoading ? null : onTap,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -531,11 +597,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  color: Colors.black,
-                  size: 20,
-                ),
+                isLoading
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        color: Colors.black,
+                        size: 20,
+                      ),
                 const SizedBox(height: 2),
                 Text(
                   label,

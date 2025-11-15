@@ -13,6 +13,8 @@ class ApiService {
   static Future<void> initializeToken() async {
     final prefs = await SharedPreferences.getInstance();
     _authToken = prefs.getString(_tokenKey);
+    if (_authToken != null) {
+    }
   }
   
   static Future<void> setAuthToken(String token) async {
@@ -40,6 +42,12 @@ class ApiService {
 
   // Check if user is authenticated
   static bool get isAuthenticated => _authToken != null;
+
+  // For testing - manually set token
+  static Future<void> setTestToken() async {
+    const testToken = 'a969055bd5e393a65576e1163cd1ebd9cfff8511';
+    await setAuthToken(testToken);
+  }
 
   // Authentication methods
   static Future<LoginResponse> login(String username, String password) async {
@@ -525,7 +533,6 @@ class ApiService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('Error updating PYQ details: $e');
       return false;
     }
   }
@@ -537,10 +544,6 @@ class ApiService {
         Uri.parse('${ApiConfig.baseUrl}/user-role-info/'),
         headers: _headers,
       ).timeout(ApiConfig.connectTimeout);
-
-      print('Moderator check URL: ${ApiConfig.baseUrl}/user-role-info/');
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -558,7 +561,91 @@ class ApiService {
       }
       return false;
     } catch (e) {
-      print('Error checking moderator status: $e');
+      return false;
+    }
+  }
+
+  // Bookmark methods
+  
+  // Get user's bookmarks
+  static Future<ApiResponse<PreviousYearQuestion>> getBookmarks({String? search}) async {
+    try {
+      String url = '${ApiConfig.baseUrl}/bookmarks/';
+      if (search != null && search.isNotEmpty) {
+        url += '?search=$search';
+      }
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final bookmarks = data.map((json) => PreviousYearQuestion.fromJson(json['pyq'])).toList();
+        
+        return ApiResponse(
+          results: bookmarks,
+          success: true,
+        );
+      } else {
+        return ApiResponse(
+          results: [],
+          success: false,
+          error: 'Failed to load bookmarks: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        results: [],
+        success: false,
+        error: 'Network error: $e',
+      );
+    }
+  }
+
+  // Add a bookmark
+  static Future<bool> addBookmark(int pyqId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/$pyqId/bookmark/'),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      return response.statusCode == 201 || response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Remove a bookmark
+  static Future<bool> removeBookmark(int pyqId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/$pyqId/bookmark/'),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Check if a PYQ is bookmarked
+  static Future<bool> isBookmarked(int pyqId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/pyqs/$pyqId/bookmark-status/'),
+        headers: _headers,
+      ).timeout(ApiConfig.connectTimeout);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['is_bookmarked'] == true;
+      }
+      return false;
+    } catch (e) {
       return false;
     }
   }

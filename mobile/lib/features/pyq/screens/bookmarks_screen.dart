@@ -3,14 +3,14 @@ import 'package:pyqachu/core/models/api_models.dart';
 import 'package:pyqachu/core/services/api_service.dart';
 import 'package:pyqachu/features/pyq/screens/pyq_viewer.dart';
 
-class BookmarkPage extends StatefulWidget {
-  const BookmarkPage({super.key});
+class BookmarksScreen extends StatefulWidget {
+  const BookmarksScreen({Key? key}) : super(key: key);
 
   @override
-  State<BookmarkPage> createState() => _BookmarkPageState();
+  State<BookmarksScreen> createState() => _BookmarksScreenState();
 }
 
-class _BookmarkPageState extends State<BookmarkPage> {
+class _BookmarksScreenState extends State<BookmarksScreen> {
   List<PreviousYearQuestion> _bookmarks = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -29,26 +29,33 @@ class _BookmarkPageState extends State<BookmarkPage> {
   }
 
   Future<void> _loadBookmarks({String? search}) async {
+    print('🔖 BookmarksScreen: Starting to load bookmarks...');
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
+      print('🔖 BookmarksScreen: Calling ApiService.getBookmarks...');
       final response = await ApiService.getBookmarks(search: search);
+      
+      print('🔖 BookmarksScreen: Got response - success: ${response.success}, results count: ${response.results.length}');
       
       if (response.success && mounted) {
         setState(() {
           _bookmarks = response.results;
           _isLoading = false;
         });
+        print('🔖 BookmarksScreen: Successfully set ${_bookmarks.length} bookmarks in state');
       } else {
+        print('🔖 BookmarksScreen: Failed to load bookmarks - ${response.error}');
         setState(() {
           _errorMessage = response.error ?? 'Failed to load bookmarks';
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('🔖 BookmarksScreen: Exception occurred - $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Network error: $e';
@@ -103,6 +110,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
         builder: (context) => PdfViewerScreen(pyq: pyq),
       ),
     ).then((_) {
+      // Refresh bookmark status when returning from viewer
       _loadBookmarks(search: _searchController.text.isNotEmpty ? _searchController.text : null);
     });
   }
@@ -114,29 +122,23 @@ class _BookmarkPageState extends State<BookmarkPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
-        toolbarHeight: 90,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 15),
-          child: Image.asset(
-            'assets/images/logo.png',
-            width: 70,
-            height: 70,
-            fit: BoxFit.contain,
-          ),
-        ),
         title: const Text(
           'Bookmarks',
           style: TextStyle(
             color: Colors.black,
-            fontWeight: FontWeight.w600,
             fontSize: 18,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.black),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
+          // Search bar
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(16),
@@ -163,6 +165,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               onChanged: (value) {
+                // Debounce search
                 Future.delayed(const Duration(milliseconds: 500), () {
                   if (_searchController.text == value) {
                     _loadBookmarks(search: value.isNotEmpty ? value : null);
@@ -171,6 +174,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
               },
             ),
           ),
+          // Content
           Expanded(
             child: _buildContent(),
           ),
@@ -401,5 +405,18 @@ class _BookmarkPageState extends State<BookmarkPage> {
         ],
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.black;
+      case 'pending':
+        return Colors.grey[600]!;
+      case 'rejected':
+        return Colors.grey[800]!;
+      default:
+        return Colors.grey[500]!;
+    }
   }
 }

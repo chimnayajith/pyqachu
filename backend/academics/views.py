@@ -11,11 +11,11 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 import os
 import mimetypes
-from .models import College, Branch, Subject, PreviousYearQuestion, UserRole
+from .models import College, Branch, Subject, PreviousYearQuestion, UserRole, Bookmark
 from .serializers import (
     CollegeSerializer, BranchSerializer, SubjectSerializer, 
     PreviousYearQuestionSerializer, UserRoleSerializer,
-    PYQUploadSerializer, PYQModerationSerializer
+    PYQUploadSerializer, PYQModerationSerializer, BookmarkSerializer
 )
 from .permissions import RoleBasedPermissionMixin
 
@@ -432,6 +432,133 @@ def pyq_download(request, pk):
             
         except Exception as e:
             raise Http404("Error serving file")
+            
+    except PreviousYearQuestion.DoesNotExist:
+        raise Http404("PYQ not found")
+
+
+class BookmarkListView(generics.ListAPIView):
+    """
+    GET /api/bookmarks/ - List user's bookmarks
+    """
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return Bookmark.objects.filter(
+            user=self.request.user,
+            pyq__status='approved'  # Only show bookmarks for approved PYQs
+        ).select_related('pyq', 'pyq__subject', 'pyq__subject__branch', 'pyq__subject__branch__college')
+
+
+class BookmarkCreateView(generics.CreateAPIView):
+    """
+    POST /api/bookmarks/ - Add a bookmark
+    Body: {"pyq": <pyq_id>}
+    """
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        pyq = serializer.validated_data['pyq']
+        
+        # Check if user has access to this PYQ's college
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(self.request.user)
+        college = pyq.subject.branch.college
+        
+        if not user_colleges.filter(id=college.id).exists():
+            raise PermissionDenied("You don't have access to this PYQ")
+        
+        # Only allow bookmarking approved PYQs (unless user can moderate)
+        if pyq.status != 'approved' and not self.request.user.is_superuser:
+            if not RoleBasedPermissionMixin.can_moderate_pyqs(self.request.user, college):
+                raise PermissionDenied("Can only bookmark approved PYQs")
+        
+        try:
+            serializer.save(user=self.request.user)
+        except Exception as e:
+            # Handle unique constraint violation (bookmark already exists)
+            if 'UNIQUE constraint failed' in str(e):
+                return Response(
+                    {'error': 'PYQ is already bookmarked'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            raise
+
+
+@api_view(['POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def bookmark_toggle(request, pyq_id):
+    """
+    POST /api/pyqs/<pyq_id>/bookmark/ - Add a PYQ to bookmarks
+    DELETE /api/pyqs/<pyq_id>/bookmark/ - Remove a PYQ from bookmarks
+    """
+    try:
+        pyq = get_object_or_404(PreviousYearQuestion, pk=pyq_id)
+        
+        # Check if user has access to this PYQ's college
+        user_colleges = RoleBasedPermissionMixin.get_user_colleges(request.user)
+        college = pyq.subject.branch.college
+        
+        if not user_colleges.filter(id=college.id).exists():
+            raise PermissionDenied("You don't have access to this PYQ")
+        
+        # Only allow bookmarking approved PYQs unless user can moderate
+        if pyq.status != 'approved' and not request.user.is_superuser:
+            if not RoleBasedPermissionMixin.can_moderate_pyqs(request.user, college):
+                raise PermissionDenied("This PYQ is not approved for bookmarking")
+        
+        if request.method == 'POST':
+            # Add bookmark
+            bookmark, created = Bookmark.objects.get_or_create(
+                user=request.user,
+                pyq=pyq
+            )
+            
+            if created:
+                serializer = BookmarkSerializer(bookmark)
+                return Response({
+                    'message': 'PYQ bookmarked successfully',
+                    'bookmark': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    'message': 'PYQ is already bookmarked'
+                }, status=status.HTTP_200_OK)
+        
+        elif request.method == 'DELETE':
+            # Remove bookmark
+            bookmark = Bookmark.objects.filter(user=request.user, pyq=pyq).first()
+            
+            if bookmark:
+                bookmark.delete()
+                return Response({
+                    'message': 'Bookmark removed successfully'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'message': 'PYQ is not bookmarked'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+    except PreviousYearQuestion.DoesNotExist:
+        raise Http404("PYQ not found")
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_bookmark_status(request, pyq_id):
+    """
+    GET /api/pyqs/<pyq_id>/bookmark-status/ - Check if a PYQ is bookmarked by the user
+    """
+    try:
+        pyq = get_object_or_404(PreviousYearQuestion, pk=pyq_id)
+        is_bookmarked = Bookmark.objects.filter(user=request.user, pyq=pyq).exists()
+        
+        return Response({
+            'is_bookmarked': is_bookmarked
+        })
             
     except PreviousYearQuestion.DoesNotExist:
         raise Http404("PYQ not found")

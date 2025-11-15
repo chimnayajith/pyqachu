@@ -105,3 +105,17 @@ class PreviousYearQuestion(models.Model):
     def approved(self):
         """Backward compatibility property"""
         return self.status == 'approved'
+
+
+class Bookmark(models.Model):
+    """Model for user bookmarks of PYQs"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookmarks')
+    pyq = models.ForeignKey(PreviousYearQuestion, on_delete=models.CASCADE, related_name='bookmarks')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['user', 'pyq']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.pyq}"

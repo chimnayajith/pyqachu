@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import College, Branch, Subject, PreviousYearQuestion, UserRole
+from .models import College, Branch, Subject, PreviousYearQuestion, UserRole, Bookmark
 from .permissions import RoleBasedPermissionMixin
 
 
@@ -124,3 +124,17 @@ class PYQModerationSerializer(serializers.ModelSerializer):
             from django.utils import timezone
             instance.reviewed_at = timezone.now()
         return super().update(instance, validated_data)
+
+
+class BookmarkSerializer(serializers.ModelSerializer):
+    """Serializer for user bookmarks"""
+    pyq = PreviousYearQuestionSerializer(read_only=True)
+    pyq_id = serializers.IntegerField(write_only=True)
+    
+    class Meta:
+        model = Bookmark
+        fields = ['id', 'pyq', 'pyq_id', 'created_at']
+    
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
